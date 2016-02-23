@@ -1,8 +1,20 @@
+package com.kapitonenko.httpserver;
+
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
-import java.util.HashMap;
-import java.util.Map;
+import java.net.InetSocketAddress;
+import java.net.Socket;
+import java.net.SocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SelectionKey;
+import java.nio.channels.Selector;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.file.*;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -10,17 +22,19 @@ import java.util.regex.Pattern;
  * Created by kapiton on 23.02.16.
  */
 public class FileReader {
-    private static Map<String, byte[]> fileCash;
+    private static com.kapitonenko.httpserver.RecursiveWatcher watcher;
+
+    private static Map<Path, byte[]> fileCash;
     static {
         fileCash = new HashMap<>();
     }
 
-    private static Map<String, Boolean> fileUpdateStatus;
+    private static Map<Path, Boolean> fileUpdateStatus;
     static {
         fileUpdateStatus = new HashMap<>();
     }
 
-    private static String rootDirectory = "/home/kapiton";
+    private static String rootDirectory = "/home/kapiton/Http-root";
 
     private static Map<String, String> contentTypesMap;
     static {
@@ -33,8 +47,22 @@ public class FileReader {
         contentTypesMap.put("gif", "image/gif");
     }
 
+    public static void initFileReader(String rootDirectory) {
+        FileReader.rootDirectory = rootDirectory;
+    }
+
+    public static void createWatcher() {
+        try {
+            watcher = new RecursiveWatcher(Paths.get(rootDirectory), fileCash, fileUpdateStatus);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     public static byte[] getResource(String pathname, String contentType, String charset) throws IOException {
-        if(fileUpdateStatus.get(pathname) == null || fileUpdateStatus.get(pathname)) {
+        Path filename = Paths.get(rootDirectory + pathname.substring(1));
+        watcher.checkWatchService();
+        if(fileUpdateStatus.get(filename) == null || fileUpdateStatus.get(filename)) {
             byte[] temp;
             if (contentType.equals("application/javascript") || contentType.equals("text/html")
                     || contentType.equals("text/css")) {
@@ -56,11 +84,13 @@ public class FileReader {
                 }
             }
 
-            fileUpdateStatus.put(pathname, false);
-            fileCash.put(pathname, temp);
+            fileUpdateStatus.put(filename, false);
+            fileCash.put(filename, temp);
             return temp;
-        } else
-            return fileCash.get(pathname);
+        } else {
+            System.out.println("Use cash");
+            return fileCash.get(filename);
+        }
     }
 
     public static byte[] getResource(String pathname, String contentType) throws IOException{

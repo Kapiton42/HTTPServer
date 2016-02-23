@@ -1,4 +1,4 @@
-import com.sun.deploy.util.ArrayUtil;
+package com.kapitonenko.httpserver;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -48,6 +48,8 @@ public class SocketProcessorNIO implements Runnable {
     SocketChannel socketChannel;
     String response;
 
+    public static String rootDir = "/home/kapiton/Http-root";
+
     private String charset = "UTF-8";
 
     public SocketProcessorNIO(SocketChannel socketChannel, SelectionKey selectionKey,
@@ -60,13 +62,13 @@ public class SocketProcessorNIO implements Runnable {
 
     public void run() {
         try {
-            //System.out.println("Run");
             readInput(response);
-           // System.out.println("End");
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+            sendResponse(createErrorResponse("404", "Not Found"));
         } catch (Throwable throwable) {
-           // System.out.println("400");
             throwable.printStackTrace();
-            sendResponse(createErrorResponse("400", "Bad request"));
+            sendResponse(createErrorResponse("500", "Bad request"));
         }
     }
 
@@ -166,7 +168,7 @@ public class SocketProcessorNIO implements Runnable {
     private String getETag(String pathname) throws IOException {
         BasicFileAttributes attr = null;
 
-        Path path = Paths.get("/home/kapiton" + pathname.substring(1));
+        Path path = Paths.get(rootDir + pathname.substring(1));
         attr = Files.readAttributes(path, BasicFileAttributes.class);
 
         Object fileKey = attr.fileKey();
@@ -179,7 +181,7 @@ public class SocketProcessorNIO implements Runnable {
     private void sendImage(String pathname, String format, String contentType) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
 
-        BufferedImage img = ImageIO.read(new File("/home/kapiton" + pathname.substring(1)));
+        BufferedImage img = ImageIO.read(new File(rootDir + pathname.substring(1)));
         ImageIO.write(img, format, baos);
         baos.flush();
 
@@ -206,12 +208,12 @@ public class SocketProcessorNIO implements Runnable {
     private String readTextFile(String pathname) throws IOException {
         String fileString = null;
 
-        File f = new File("/home/kapiton" + pathname.substring(1));
+        File f = new File(rootDir + pathname.substring(1));
 
         if(!f.exists() || f.isDirectory()) {
             sendResponse(createErrorResponse("404", "Not found"));
         } else {
-            Path path = Paths.get("/home/kapiton" + pathname.substring(1));
+            Path path = Paths.get(rootDir + pathname.substring(1));
             try (Stream<String> lines = Files.lines(path)) {
                 fileString = lines.collect(Collectors.joining("\n"));
             }
@@ -220,7 +222,7 @@ public class SocketProcessorNIO implements Runnable {
     }
 
     private byte[] readTextFileByte(String pathname) throws  IOException{
-        try(FileInputStream fin = new FileInputStream("/home/kapiton" + pathname.substring(1))) {
+        try(FileInputStream fin = new FileInputStream(rootDir + pathname.substring(1))) {
             InputStreamReader isr = new InputStreamReader(fin);
             char[] buffer = new char[fin.available()];
             isr.read(buffer, 0, fin.available());
@@ -239,6 +241,8 @@ public class SocketProcessorNIO implements Runnable {
     }
 
     private void readInput(String response) throws Throwable {
+        System.out.print(response);
+
         String[] responseParsed = response.split("\r\n");
 
         String firstString = responseParsed[0];

@@ -1,3 +1,6 @@
+package com.kapitonenko.httpserver;
+
+import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -11,6 +14,9 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+/**
+ * Created by kapiton on 23.02.16.
+ */
 public class NIOHttpServer {
     private Selector selector;
     private Map<SocketChannel, List<String>> dataMapper;
@@ -19,16 +25,17 @@ public class NIOHttpServer {
     ExecutorService service = Executors.newCachedThreadPool();
 
     public static void main(String[] args) throws Exception {
-        new NIOHttpServer("localhost", 8081).startServer();
+        FileReader.createWatcher();
+        new NIOHttpServer(8081).startServer();
     }
 
-    public NIOHttpServer(String address, int port) throws IOException {
-        listenAddress = new InetSocketAddress(address, port);
+    public NIOHttpServer(int port) throws IOException {
+        listenAddress = new InetSocketAddress(port);
         dataMapper = new HashMap<>();
         dataToSend = new HashMap<>();
     }
 
-    private void startServer() {
+    public void startServer() {
         try {
             this.selector = Selector.open();
             ServerSocketChannel serverChannel = ServerSocketChannel.open();
@@ -41,8 +48,8 @@ public class NIOHttpServer {
             e.printStackTrace();
         }
 
-            while (true) {
-                try {
+        while (true) {
+            try {
                 this.selector.select(10);
                 Iterator<SelectionKey> keys = this.selector.selectedKeys().iterator();
                 while (keys.hasNext()) {
@@ -53,17 +60,25 @@ public class NIOHttpServer {
                     if (!key.isValid()) {
                         continue;
                     }
-                    if (key.isAcceptable()) {
+                    /*if (key.isAcceptable()) {
                         this.accept(key);
                     } else if (key.isWritable()) {
                         write(key);
                     } else if (key.isReadable()) {
                         this.read(key);
+                    }*/
+
+                    if (key.isWritable()) {
+                        write(key);
+                    } else if (key.isReadable()) {
+                        this.read(key);
+                    } else if (key.isAcceptable()) {
+                        this.accept(key);
                     }
                 }
             } catch (Throwable e) {
-                    e.printStackTrace();
-                }
+                e.printStackTrace();
+            }
         }
     }
 
@@ -92,23 +107,23 @@ public class NIOHttpServer {
                 return;
             }
 
-        byte[] data = new byte[numRead];
-        System.arraycopy(buffer.array(), 0, data, 0, numRead);
-        String temp = new String(data);
-        dataMapper.get(channel).add(temp);
-        if(temp.substring(data.length - 4).equals("\r\n\r\n")) {
-            StringBuilder builder = new StringBuilder();
-            dataMapper.get(channel).forEach(builder::append);
-            String tempStr = builder.toString();
-            try {
-                //service.submit(new SocketProcessorNIO(channel, key, dataToSend, tempStr));
-                SocketProcessorNIO tt = new SocketProcessorNIO(channel, key, dataToSend, tempStr);
-                tt.run();
-            } catch (Throwable throwable) {
-                //throwable.printStackTrace();
+            byte[] data = new byte[numRead];
+            System.arraycopy(buffer.array(), 0, data, 0, numRead);
+            String temp = new String(data);
+            dataMapper.get(channel).add(temp);
+            if(temp.substring(data.length - 4).equals("\r\n\r\n")) {
+                StringBuilder builder = new StringBuilder();
+                dataMapper.get(channel).forEach(builder::append);
+                String tempStr = builder.toString();
+                try {
+                    service.submit(new SocketProcessorNIO(channel, key, dataToSend, tempStr));
+                    //SocketProcessorNIO tt = new SocketProcessorNIO(channel, key, dataToSend, tempStr);
+                    //tt.run();
+                } catch (Throwable throwable) {
+                    //throwable.printStackTrace();
+                }
+                dataMapper.remove(channel);
             }
-            dataMapper.remove(channel);
-        }
         } catch (IOException e) {
             //e.printStackTrace();
         }

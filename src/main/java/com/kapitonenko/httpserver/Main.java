@@ -1,3 +1,5 @@
+package com.kapitonenko.httpserver;
+
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -13,9 +15,17 @@ import java.util.HashMap;
 public class Main {
     public static void main(String[] args) {
         HashMap<String, String> config = readConfigJson();
-        HttpServer server = new HttpServer();
-        server.createServer(config);
-        server.runServer();
+
+        com.kapitonenko.httpserver.FileReader.initFileReader(config.get("rootDir"));
+        com.kapitonenko.httpserver.FileReader.createWatcher();
+
+        NIOHttpServer server;
+        try {
+            server = new NIOHttpServer(Integer.parseInt(config.get("port")));
+            server.startServer();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private static HashMap<String, String> readConfigJson() {
@@ -24,8 +34,17 @@ public class Main {
         try {
             JSONObject object = (JSONObject) parser.parse(
                     new FileReader("/home/kapiton/config"));
-            config.put("port", (String) object.get("port"));
+            String temp = (String) object.get("port");
+            if(temp == null)
+                temp = "8080";
+            config.put("port", temp);
             System.out.println("Port: " + config.get("port"));
+
+            temp = (String) object.get("rootDir");
+            if(temp == null)
+                temp = "/home/kapiton/Http-root";
+            config.put("rootDir", temp);
+            System.out.println("RootDirectory: " + config.get("rootDir"));
 
         } catch (IOException | ParseException e) {
             e.printStackTrace();
