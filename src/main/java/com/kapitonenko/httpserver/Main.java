@@ -25,7 +25,7 @@ public class Main {
         if(args.length == 1) {
             readConfigJson(args[0]);
         } else {
-            printConfig();
+            readConfigJson("config.ini");
         }
 
         com.kapitonenko.httpserver.FileReader.initFileReader(configFields.get("rootDir"));
@@ -52,8 +52,9 @@ public class Main {
                     configFields.put((String) field.getKey(), temp);
             }
             printConfig();
-        } catch (IOException | ParseException e) {
-            e.printStackTrace();
+        }
+        catch (IOException | ParseException e) {
+            printConfig();
         }
     }
 
