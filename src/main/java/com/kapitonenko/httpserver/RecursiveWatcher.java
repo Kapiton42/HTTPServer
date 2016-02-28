@@ -9,6 +9,9 @@ import static java.nio.file.LinkOption.*;
 
 import static java.nio.file.StandardWatchEventKinds.*;
 
+/**
+ * Created by kapiton on 23.02.16.
+ */
 public class RecursiveWatcher {
     private final WatchService watcher;
     private final Map<WatchKey, Path> keys;

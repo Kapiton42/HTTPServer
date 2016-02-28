@@ -3,18 +3,9 @@ package com.kapitonenko.httpserver;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.net.SocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SelectionKey;
-import java.nio.channels.Selector;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -32,6 +23,11 @@ public class FileReader {
     private static Map<Path, Boolean> fileUpdateStatus;
     static {
         fileUpdateStatus = new HashMap<>();
+    }
+
+    private static Set<String> cashingFiles;
+    static {
+        cashingFiles = new HashSet<>();
     }
 
     private static String rootDirectory = "/home/kapiton/Http-root";
@@ -59,10 +55,21 @@ public class FileReader {
         }
     }
 
+    public static void setCashingFiles(String cashingFilesString) {
+        if(cashingFilesString.equals("all"))
+            cashingFiles.add("all");
+        else {
+            String[] extensions = cashingFilesString.split(",");
+            for(String str: extensions) {
+                cashingFiles.add(contentTypesMap.get(str));
+            }
+        }
+    }
+
     public static byte[] getResource(String pathname, String contentType, String charset) throws IOException {
         Path filename = Paths.get(rootDirectory + pathname.substring(1));
         watcher.checkWatchService();
-        if(fileUpdateStatus.get(filename) == null || fileUpdateStatus.get(filename)) {
+        if(!isNeedCashing(contentType) || fileUpdateStatus.get(filename) == null || fileUpdateStatus.get(filename)) {
             byte[] temp;
             if (contentType.equals("application/javascript") || contentType.equals("text/html")
                     || contentType.equals("text/css")) {
@@ -93,6 +100,12 @@ public class FileReader {
         }
     }
 
+    private static boolean isNeedCashing(String contentType) {
+        System.out.println(cashingFiles.contains("all") || cashingFiles.contains(contentType));
+        System.out.println(contentType);
+        return cashingFiles.contains("all") || cashingFiles.contains(contentType);
+    }
+
     public static byte[] getResource(String pathname, String contentType) throws IOException{
         return getResource(pathname, contentType, "UTF-8");
     }
@@ -107,6 +120,19 @@ public class FileReader {
             contentType = contentTypesMap.get(m.group().substring(1));
 
         return contentType;
+    }
+
+    public static String getETag(String pathname) throws IOException {
+        BasicFileAttributes attr = null;
+
+        Path path = Paths.get(rootDirectory + pathname.substring(1));
+        attr = Files.readAttributes(path, BasicFileAttributes.class);
+
+        Object fileKey = attr.fileKey();
+        String s = fileKey.toString();
+        String inode = s.substring(s.indexOf("ino=") + 4, s.indexOf(")"));
+
+        return (inode + attr.lastModifiedTime() + attr.size()).replace(":", "-");
     }
 
     private static byte[] readImage(String pathname, String format) throws IOException {

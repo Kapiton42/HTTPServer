@@ -20,7 +20,7 @@
         <configuration>
           <transformers>
             <transformer>
-              <mainClass>Main</mainClass>
+              <mainClass>com.kapitonenko.httpserver.Main</mainClass>
             </transformer>
           </transformers>
         </configuration>

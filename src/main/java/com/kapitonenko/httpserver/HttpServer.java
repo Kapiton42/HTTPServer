@@ -16,6 +16,9 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * Created by kapiton on 05.02.16.
+ */
 public class HttpServer {
     private ServerSocket serverSocket;
 

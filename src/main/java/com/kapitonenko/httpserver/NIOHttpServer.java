@@ -1,6 +1,5 @@
 package com.kapitonenko.httpserver;
 
-import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -11,6 +10,7 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,7 +32,7 @@ public class NIOHttpServer {
     public NIOHttpServer(int port) throws IOException {
         listenAddress = new InetSocketAddress(port);
         dataMapper = new HashMap<>();
-        dataToSend = new HashMap<>();
+        dataToSend = new ConcurrentHashMap<>();
     }
 
     public void startServer() {
@@ -58,18 +58,12 @@ public class NIOHttpServer {
                     keys.remove();
 
                     if (!key.isValid()) {
+                        System.out.println("invalid key");
                         continue;
                     }
-                    /*if (key.isAcceptable()) {
-                        this.accept(key);
-                    } else if (key.isWritable()) {
-                        write(key);
-                    } else if (key.isReadable()) {
-                        this.read(key);
-                    }*/
 
                     if (key.isWritable()) {
-                        write(key);
+                        this.write(key);
                     } else if (key.isReadable()) {
                         this.read(key);
                     } else if (key.isAcceptable()) {
@@ -86,8 +80,6 @@ public class NIOHttpServer {
         ServerSocketChannel serverChannel = (ServerSocketChannel) key.channel();
         SocketChannel channel = serverChannel.accept();
         channel.configureBlocking(false);
-        Socket socket = channel.socket();
-        SocketAddress remoteAddr = socket.getRemoteSocketAddress();
 
         dataMapper.put(channel, new ArrayList<>());
         channel.register(this.selector, SelectionKey.OP_READ);
@@ -111,33 +103,49 @@ public class NIOHttpServer {
             System.arraycopy(buffer.array(), 0, data, 0, numRead);
             String temp = new String(data);
             dataMapper.get(channel).add(temp);
-            if(temp.substring(data.length - 4).equals("\r\n\r\n")) {
-                StringBuilder builder = new StringBuilder();
-                dataMapper.get(channel).forEach(builder::append);
-                String tempStr = builder.toString();
-                try {
-                    service.submit(new SocketProcessorNIO(channel, key, dataToSend, tempStr));
-                    //SocketProcessorNIO tt = new SocketProcessorNIO(channel, key, dataToSend, tempStr);
-                    //tt.run();
-                } catch (Throwable throwable) {
-                    //throwable.printStackTrace();
+
+            if (temp.length() < 4) {
+                temp = getMinFourSymbols(channel);
+            }
+            if(temp.length() > 3) {
+                if (temp.substring(temp.length() - 4).equals("\r\n\r\n")) {
+                    startProcessingRequest(key, channel);
                 }
-                dataMapper.remove(channel);
             }
         } catch (IOException e) {
-            //e.printStackTrace();
+            e.printStackTrace();
         }
     }
 
+    private void startProcessingRequest(SelectionKey key, SocketChannel channel) {
+        StringBuilder builder = new StringBuilder();
+        dataMapper.get(channel).forEach(builder::append);
+        String tempStr = builder.toString();
+        try {
+            service.submit(new SocketProcessorNIO(channel, key, dataToSend, tempStr));
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
+        }
+        dataMapper.remove(channel);
+    }
+
+    private String getMinFourSymbols(SocketChannel channel) {
+        String temp;
+        StringBuilder builder = new StringBuilder();
+        List<String> list= dataMapper.get(channel);
+        for(int i = list.size() - 1; builder.length() < 4 && i > 0; i--) {
+            builder.insert(0, list.get(i));
+        }
+        temp = builder.toString();
+        return temp;
+    }
+
     private void write(SelectionKey key) throws IOException{
-        //System.out.println("Write");
         SocketChannel channel = (SocketChannel) key.channel();
         byte[] data = dataToSend.get(channel);
         dataToSend.remove(channel);
-        if(data != null) {
-            channel.write(ByteBuffer.wrap(data));
-            channel.close();
-            key.cancel();
-        }
+        channel.write(ByteBuffer.wrap(data));
+        channel.close();
+        key.cancel();
     }
 }
